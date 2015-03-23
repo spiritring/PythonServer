@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>TimeShiftGame</title>
+    <style>
+        div#output {
+            border: 1px solid #000;
+            width: 960px;
+            height: 150px;
+            overflow: auto;
+            background-color: #333;
+            color: #6cf;
+        }
+
+        strong {
+            color: #f66;
+        }
+
+        input#input {
+            border: 1px solid #000;
+            width: 640px;
+        }
+
+        button {
+            border: 1px solid #000;
+            width: 100px;
+        }
+    </style>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        var input = null;
+        G_Output = null;
+
+        function TSLog(sLog){
+            G_Output.innerHTML += (sLog + "<br>\n");
+        }
+		
+		G_SceneType = {
+			TSMainMenuLayer:0,
+			TSAboutLayer:1,
+			TSGameLayer:2,
+			TSHallLayer:3,
+			TSSettingLayer:4,
+			TSRoomLayer:5,
+			TSJoinLayer:6
+		};
+
+		G_SceneState = G_SceneType.TSMainMenuLayer;
+
+        // initialize
+        window.onload = function() {
+            var UURL = "127.0.0.1";//"spiritring.xicp.net"
+            var AdaptSCfgPort = 9901;//26498 // 9901
+			
+            input = document.getElementById('input');
+            G_Output = document.getElementById('output');
+            input.value = "login:a";
+			
+            G_hSocket = WebSocketEngine(UURL, AdaptSCfgPort,
+                    function(){
+                        var sPacket = {};
+                        sPacket.MM = "ConnectGateWay";
+                        TSSendBuffer(JSON.stringify(sPacket));
+                    },
+                    function(oPacket){
+                        switch(oPacket.MM)
+                        {
+                            case "ConnectGateWay":
+                                ConnectGateWay(UURL, oPacket.Port);
+                                TSLog("" + oPacket.Port);
+                                break;
+                        }
+                    },
+                    function(){
+                    }
+            );
+
+            function ConnectGateWay(sIP, iPORT) {
+                G_hSocket = WebSocketEngine(sIP, iPORT,
+                        function(){
+                            TSLog("<strong>网关链接成功!</strong> Port:" + iPORT + " IP:" + sIP + "<br>");
+                            G_hSocket.PORT = iPORT;
+                            G_hSocket.IP = sIP;
+							G_SocketInfo = {};
+							G_SocketInfo.PORT = iPORT.toString();
+                        },
+
+                        function(oPacket){
+							TSLog("JS->MessageProc:" + JSON.stringify(oPacket));
+
+							switch(oPacket.MM) {
+								case "RegistUUID":
+									//var mainScene = TSMainMenu.scene();
+									//director.runWithScene(mainScene); //进入主场景
+									G_UserInfo = {};
+									G_UserInfo.UUID = oPacket.UUID.toString();
+									break;
+								case "LoginSuccess":
+									G_UserInfo.NAME = oPacket.NAME;
+									myApp = new cocos2dApp(TSMainMenu.scene);
+									break;
+							}
+						
+							switch (G_SceneState) {
+								case G_SceneType.TSGameLayer:
+									TSGameLayer.MessageProc(oPacket);
+									break;
+								case G_SceneType.TSMainMenuLayer:
+									TSMainMenu.MessageProc(oPacket);
+									break;
+								case G_SceneType.TSHallLayer:
+									TSHallLayer.MessageProc(oPacket);
+									break;
+								case G_SceneType.TSRoomLayer:
+									TSRoomLayer.MessageProc(oPacket);
+									break;
+								case G_SceneType.TSJoinLayer:
+									TSJoinLayer.MessageProc(oPacket);
+									break;
+							}
+                        },
+
+                        function(){
+
+                        }
+                );
+
+            }
+        }
+
+        function _send(){
+            var sPacket = {};
+            sPacket.MM = "SysOrder";
+            sPacket.Order = input.value;
+            TSSendBuffer(JSON.stringify(sPacket));
+            G_Output.innerHTML += ('<strong>命令发送: </strong>' + input.value + '<br>\n');
+        };
+
+        function _clear(){
+            G_Output.innerHTML = '';
+        };
+
+    </script>
+</head>
+<body>
+<div style="width: 320px; height: 480px;">
+    <canvas id="gameCanvas" width="640" height="480" ></canvas>
+</div>
+
+<input type="text" id="input">
+<button id="send" onclick="_send()">Send</button>
+<button id="clear" onclick="_clear()">Clear</button>
+<div id="output"></div>
+
+</body>
+</html>
+
+<script src="cocos2d.js"> </script>
